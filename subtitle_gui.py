@@ -87,9 +87,14 @@ class SubtitleApp:
         self.clear_button = ttk.Button(buttons_frame, text="Clear list", command=self.clear_files)
         self.clear_button.grid(row=0, column=0, padx=(0, 10))
         
+        self.auto_clear_var = tk.BooleanVar(value=True)
+        self.auto_clear_check = ttk.Checkbutton(buttons_frame, text="Auto-clear after processing", 
+                                               variable=self.auto_clear_var)
+        self.auto_clear_check.grid(row=0, column=1, padx=(0, 10))
+        
         self.process_button = ttk.Button(buttons_frame, text="Process files", 
                                         command=self.process_files, state=tk.DISABLED)
-        self.process_button.grid(row=0, column=1)
+        self.process_button.grid(row=0, column=2)
         
         self.progress_var = tk.DoubleVar()
         self.progress_bar = ttk.Progressbar(main_frame, variable=self.progress_var, maximum=100)
@@ -208,10 +213,27 @@ class SubtitleApp:
                         pass
                     
                     self.root.after(0, lambda f=file_info, e=error_msg: self.update_file_status(f, f"❌ {e}"))
+                
+                if (i + 1) % 3 == 0:
+                    try:
+                        cleanup_response = requests.post(f"{self.api_url}/cleanup", timeout=10)
+                        if cleanup_response.status_code == 200:
+                            print(f"Memory cleaned after {i+1} files")
+                    except:
+                        pass
                     
             except Exception as e:
                 error_msg = f"Error: {str(e)}"
                 self.root.after(0, lambda f=file_info, e=error_msg: self.update_file_status(f, e))
+        
+        try:
+            requests.post(f"{self.api_url}/cleanup", timeout=10)
+            print("Final memory cleanup completed")
+        except:
+            pass
+        
+        if self.auto_clear_var.get():
+            self.root.after(0, self.clear_files)
         
         self.root.after(0, lambda: self.progress_var.set(100))
         self.root.after(0, lambda: self.status_text.set("Processing complete"))

@@ -8,12 +8,20 @@ import soundfile as sf
 from typing import Optional
 import nemo.collections.asr as nemo_asr
 from pydantic import BaseModel
-import asyncio
 from datetime import timedelta
+import gc
+import torch
 
 app = FastAPI(title="Parakeet Video Subtitle API")
 
 asr_model = None
+
+def cleanup_memory():
+    """Force garbage collection and clear GPU cache"""
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
 
 @app.on_event("startup")
 async def startup_event():
@@ -112,6 +120,12 @@ async def health_check():
         "model_loaded": asr_model is not None
     }
 
+@app.post("/cleanup")
+async def force_cleanup():
+    """Force memory cleanup - useful for batch processing"""
+    cleanup_memory()
+    return {"status": "memory cleaned"}
+
 @app.post("/transcribe")
 async def transcribe_video(file: UploadFile = File(...)):
     if asr_model is None:
@@ -139,6 +153,7 @@ async def transcribe_video(file: UploadFile = File(...)):
                 try:
                     y, sr = librosa.load(input_path, sr=16000, mono=True)
                     sf.write(audio_path, y, 16000)
+                    del y, sr
                 except Exception as e:
                     raise HTTPException(status_code=400, detail=f"Audio reading error: {str(e)}")
             else:
@@ -183,6 +198,12 @@ async def transcribe_video(file: UploadFile = File(...)):
             if hasattr(result, 'timestamp'):
                 response_data["timestamps"] = result.timestamp
             
+            del transcription, result
+            if file_extension in ['.mp3', '.wav', '.flac']:
+                pass  # y, sr already deleted above
+            
+            cleanup_memory()
+            
             return response_data
             
     except HTTPException:
@@ -190,6 +211,8 @@ async def transcribe_video(file: UploadFile = File(...)):
     except Exception as e:
         print(f"Transcription error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Transcription error: {str(e)}")
+    finally:
+        cleanup_memory()
 
 @app.post("/transcribe-file")
 async def transcribe_and_download(file: UploadFile = File(...)):

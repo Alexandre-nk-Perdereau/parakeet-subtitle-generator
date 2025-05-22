@@ -33,7 +33,7 @@ cd parakeet-subtitle
 ### 2. Start API (Docker)
 
 ```bash
-start_api.bat
+start_docker.bat
 ```
 
 ### 3. Install Windows GUI
