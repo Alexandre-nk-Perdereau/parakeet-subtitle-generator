@@ -29,15 +29,39 @@ async def startup_event():
     try:
         print("Loading Parakeet model...")
         asr_model = nemo_asr.models.ASRModel.from_pretrained("nvidia/parakeet-tdt-0.6b-v3")
-        
-        print("Configuring Parakeet for long audio...")
-        asr_model.change_attention_model("rel_pos_local_attn", [128, 128])
-        asr_model.change_subsampling_conv_chunking_factor(1)
-        
         print("Parakeet model loaded successfully!")
     except Exception as e:
         print(f"Error loading model: {e}")
         raise
+
+def configure_model_for_duration(duration_seconds):
+    """Configure the model based on audio duration"""
+    # degrade the performance a lot for big audios, maybe slice audio would be a better approach
+    duration_minutes = duration_seconds / 60
+    
+    if duration_minutes < 30:
+        print(f"Audio {duration_minutes:.1f} min : Standard configuration")
+        asr_model.change_attention_model("rel_pos_local_attn", [128, 128])
+        asr_model.change_subsampling_conv_chunking_factor(1)
+        return {"batch_size": 1, "use_mixed_precision": False}
+    
+    elif duration_minutes < 45:
+        print(f"Audio {duration_minutes:.1f} min : Light memory optimization")
+        asr_model.change_attention_model("rel_pos_local_attn", [128, 128])
+        asr_model.change_subsampling_conv_chunking_factor(4)
+        return {"batch_size": 2, "use_mixed_precision": False}
+    
+    elif duration_minutes < 70:
+        print(f"Audio {duration_minutes:.1f} min : Medium memory optimization")
+        asr_model.change_attention_model("rel_pos_local_attn", [64, 64])
+        asr_model.change_subsampling_conv_chunking_factor(4)
+        return {"batch_size": 1, "use_mixed_precision": False}
+    
+    else:
+        print(f"Audio {duration_minutes:.1f} min : Aggressive memory optimization + mixed precision")
+        asr_model.change_attention_model("rel_pos_local_attn", [32, 32])
+        asr_model.change_subsampling_conv_chunking_factor(8)
+        return {"batch_size": 1, "use_mixed_precision": True}
 
 def extract_audio_from_video(video_path: str, output_path: str) -> bool:
     try:
@@ -163,12 +187,25 @@ async def transcribe_video(file: UploadFile = File(...)):
             print("Starting transcription...")
             try:
                 duration = librosa.get_duration(filename=audio_path)
-                print(f"Audio duration: {duration:.2f} seconds")
+                config = configure_model_for_duration(duration)
+                if config["use_mixed_precision"]:
+                    print("Using mixed precision for very long audio")
+                    with torch.amp.autocast("cuda", enabled=True, dtype=torch.bfloat16):
+                        transcription = asr_model.transcribe(
+                            [audio_path], 
+                            batch_size=config["batch_size"],
+                            timestamps=True
+                        )
+                else:
+                    transcription = asr_model.transcribe(
+                        [audio_path], 
+                        batch_size=config["batch_size"],
+                        timestamps=True
+                    )
             except Exception as e:
-                print(f"Unable to read duration: {e}")
-            
-            transcription = asr_model.transcribe([audio_path], timestamps=True)
-            
+                print(f"Transcription error: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Transcription error: {str(e)}")
+
             if not transcription or len(transcription) == 0:
                 raise HTTPException(status_code=400, detail="No transcription generated")
             
