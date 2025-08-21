@@ -30,7 +30,7 @@ RUN pip3 install \
 
 COPY api/ .
 
-RUN python3 -c "import nemo.collections.asr as nemo_asr; nemo_asr.models.ASRModel.from_pretrained('nvidia/parakeet-tdt-0.6b-v2')"
+RUN python3 -c "import nemo.collections.asr as nemo_asr; nemo_asr.models.ASRModel.from_pretrained('nvidia/parakeet-tdt-0.6b-v3')"
 
 EXPOSE 8000
 

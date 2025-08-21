@@ -28,7 +28,7 @@ async def startup_event():
     global asr_model
     try:
         print("Loading Parakeet model...")
-        asr_model = nemo_asr.models.ASRModel.from_pretrained("nvidia/parakeet-tdt-0.6b-v2")
+        asr_model = nemo_asr.models.ASRModel.from_pretrained("nvidia/parakeet-tdt-0.6b-v3")
         
         print("Configuring Parakeet for long audio...")
         asr_model.change_attention_model("rel_pos_local_attn", [128, 128])
@@ -38,9 +38,6 @@ async def startup_event():
     except Exception as e:
         print(f"Error loading model: {e}")
         raise
-
-class SubtitleRequest(BaseModel):
-    language: Optional[str] = "en"
 
 def extract_audio_from_video(video_path: str, output_path: str) -> bool:
     try:
@@ -192,7 +189,8 @@ async def transcribe_video(file: UploadFile = File(...)):
                 "success": True,
                 "text": result.text if hasattr(result, 'text') else str(result),
                 "srt_content": srt_content,
-                "filename": f"{os.path.splitext(file.filename)[0]}.srt"
+                "filename": f"{os.path.splitext(file.filename)[0]}.srt",
+                "detected_language": getattr(result, 'language', 'auto-detected')
             }
             
             if hasattr(result, 'timestamp'):
