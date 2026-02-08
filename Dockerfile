@@ -17,16 +17,18 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-RUN pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+RUN pip3 install --upgrade pip
+
+RUN pip3 install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu121
 
 RUN pip3 install \
-    nemo_toolkit[asr] \
-    fastapi \
-    uvicorn \
-    python-multipart \
-    librosa \
-    soundfile \
-    pydub
+    nemo_toolkit[asr]==2.3.0 \
+    fastapi==0.115.6 \
+    uvicorn==0.34.0 \
+    python-multipart==0.0.20 \
+    librosa==0.10.2.post1 \
+    soundfile==0.13.1 \
+    pydub==0.25.1
 
 COPY api/ .
 
