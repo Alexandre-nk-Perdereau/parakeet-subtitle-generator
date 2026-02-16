@@ -1,6 +1,6 @@
 # Parakeet Subtitle Generator
 
-Automatic subtitle generation for videos using **NVIDIA Parakeet TDT 0.6B V2** model.
+Automatic subtitle generation for videos using **NVIDIA Parakeet TDT 0.6B V3** model.
 
 ## Features
 
